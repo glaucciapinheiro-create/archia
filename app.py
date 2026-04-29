@@ -18,50 +18,64 @@ def get_usd_brl():
 # ─── CONFIGURAÇÃO DA PÁGINA ───
 st.set_page_config(page_title="AI ArchViz Studio", page_icon="🏛️", layout="wide")
 
-# ─── CSS (DARK THEME + LETRAS CLARAS + LIMPEZA) ───
+# ─── CSS PARA FORÇAR O DARK MODE E LIMPAR A INTERFACE ───
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Cormorant+Garamond:wght@300;400;600&family=Space+Grotesk:wght@300;400;500&display=swap');
     
+    /* Esconde elementos nativos do Streamlit */
     header {visibility: hidden;}
     footer {visibility: hidden;}
     #MainMenu {visibility: hidden;}
+    .stDeployButton {display:none;}
+    [data-testid="stStatusWidget"] {display:none;}
 
-    html, body, [class*="css"] { 
-        font-family: 'Space Grotesk', sans-serif; 
-        background-color: #0d0f14; 
-        color: #e8e4dc !important; 
+    /* Força Fundo Escuro e Texto Claro */
+    .stApp {
+        background-color: #0d0f14 !important;
+        color: #e8e4dc !important;
     }
 
-    /* Força texto claro em todos os lugares */
-    label, p, span, h1, h2, h3, .stMarkdown { color: #e8e4dc !important; }
-    
-    [data-testid="stSidebar"] { 
-        background-color: #111318; 
-        border-right: 1px solid rgba(200,180,120,0.2); 
+    [data-testid="stSidebar"] {
+        background-color: #111318 !important;
+        border-right: 1px solid rgba(200,180,120,0.2);
+    }
+
+    /* Estilização de Textos e Títulos */
+    h1, h2, h3, p, span, label, .stMarkdown {
+        color: #e8e4dc !important;
+        font-family: 'Space Grotesk', sans-serif;
     }
 
     h1 { font-family: 'Cormorant Garamond', serif !important; border-bottom: 1px solid rgba(200,180,120,0.3); }
-    h2, h3 { font-family: 'DM Mono', monospace !important; color: #c8b478 !important; letter-spacing: 0.15em !important; }
 
-    .stButton > button { 
-        background: linear-gradient(135deg, #c8b478 0%, #a8944e 100%) !important; 
-        color: #0d0f14 !important; font-family: 'DM Mono', monospace !important; font-weight: bold !important;
+    /* Botão Dourado Profissional */
+    .stButton > button {
+        background: linear-gradient(135deg, #c8b478 0%, #a8944e 100%) !important;
+        color: #0d0f14 !important;
+        font-family: 'DM Mono', monospace !important;
+        border: none !important;
+        font-weight: bold !important;
+        width: 100%;
+        height: 3em;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ─── COMPONENTE DO SLIDER (O RETORNO) ───
+# ─── SEUS PROMPTS (SUBSTITUA PELOS SEUS TEXTOS) ───
+PROMPT_EXTERNO = """[COLE AQUI SEU PROMPT PARA ÁREA EXTERNA]"""
+PROMPT_INTERNO = """[COLE AQUI SEU PROMPT PARA ÁREA INTERNA]"""
+
+# ─── COMPONENTE DO SLIDER COMPARATIVO ───
 def compare_slider_html(b64_before: str, b64_after: str, height: int = 550) -> str:
     return f"""
-<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-* {{ box-sizing: border-box; margin: 0; padding: 0; }}
-body {{ background: #0d0f14; display: flex; justify-content: center; overflow: hidden; }}
-.wrap {{ position: relative; width: 100%; height: {height}px; cursor: col-resize; border: 1px solid rgba(200,180,120,0.3); border-radius: 4px; }}
-.img {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: #111318; }}
-.before {{ z-index: 2; clip-path: inset(0 50% 0 0); }}
-.divider {{ position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; background: #c8b478; z-index: 10; }}
-.handle {{ position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 44px; height: 44px; border-radius: 50%; background: #c8b478; border: 3px solid #0d0f14; z-index: 11; display: flex; align-items: center; justify-content: center; }}
+<!DOCTYPE html><html><head><style>
+    body {{ background: #0d0f14; margin: 0; display: flex; justify-content: center; overflow: hidden; }}
+    .wrap {{ position: relative; width: 100%; height: {height}px; cursor: col-resize; border: 1px solid rgba(200,180,120,0.3); }}
+    .img {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: #111318; }}
+    .before {{ z-index: 2; clip-path: inset(0 50% 0 0); }}
+    .divider {{ position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; background: #c8b478; z-index: 10; }}
+    .handle {{ position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border-radius: 50%; background: #c8b478; border: 4px solid #0d0f14; z-index: 11; display: flex; align-items: center; justify-content: center; font-weight: bold; }}
 </style></head><body>
 <div class="wrap" id="c" onmousemove="m(event)" ontouchmove="m(event.touches[0])">
     <img class="img" src="data:image/png;base64,{b64_after}">
@@ -77,42 +91,40 @@ function m(e) {{
 }}
 </script></body></html>"""
 
-# ─── SEUS PROMPTS ───
-PROMPT_EXTERNO = """[COLE SEU PROMPT EXTERNO AQUI]"""
-PROMPT_INTERNO = """[COLE SEU PROMPT INTERNO AQUI]"""
-
-def build_prompt(ambiente, lighting, style, extra, fstop):
-    regra = PROMPT_EXTERNO if ambiente == "Área Externa" else PROMPT_INTERNO
-    return f"{regra}\n\nPARAM: Luz={lighting}, Estilo={style}, Notas={extra}, Câmera={fstop}"
-
-# ─── INTERFACE ───
+# ─── SIDEBAR ───
 with st.sidebar:
-    st.markdown("## ⬡ CONFIG")
-    api_key = st.text_input("API KEY", type="password")
+    st.markdown("### ⬡ CONFIGURAÇÕES")
+    api_key = st.text_input("GEMINI API KEY", type="password")
     st.divider()
     ambiente = st.radio("AMBIENTE", ["Área Externa", "Área Interna"])
-    lighting = st.selectbox("LUZ", ["Golden Hour", "Dia Claro", "Pôr do Sol", "Noturno"])
+    lighting = st.selectbox("ILUMINAÇÃO", ["Golden Hour", "Dia Claro", "Pôr do Sol", "Noturno"])
     fstop = st.select_slider("ABERTURA", options=["f/1.8", "f/2.8", "f/8.0"], value="f/8.0")
     st.divider()
     rate = get_usd_brl()
-    st.caption(f"Custo/Render: R$ {(0.06 * rate):.2f}")
+    st.caption(f"Custo aprox: R$ {(0.06 * rate):.2f} por render")
 
+# ─── STUDIO PRINCIPAL ───
 st.markdown("# AI ArchViz Studio")
-c1, c2 = st.columns(2)
-with c1:
-    up = st.file_uploader("Upload do Print", type=["png", "jpg", "jpeg"])
+
+col1, col2 = st.columns(2)
+with col1:
+    up = st.file_uploader("Upload do Print 3D", type=["png", "jpg", "jpeg"])
     if up: st.image(up, use_container_width=True)
-with c2:
-    notes = st.text_area("Notas", placeholder="Descreva os materiais...", height=150)
-    btn = st.button(f"GERAR RENDER {ambiente.upper()}")
+
+with col2:
+    notes = st.text_area("Notas de Materiais", placeholder="Ex: Deck em madeira, paredes em concreto...", height=160)
+    btn_text = f"GERAR RENDER {ambiente.upper()}"
+    btn = st.button(btn_text)
 
 if btn and up and api_key:
-    with st.spinner(f"Renderizando {ambiente}..."):
+    with st.spinner(f"Renderizando {ambiente} no Gemini 3 Pro..."):
         try:
             client = genai.Client(api_key=api_key)
+            prompt_final = (PROMPT_EXTERNO if ambiente == "Área Externa" else PROMPT_INTERNO) + f"\nLuz: {lighting}, Notas: {notes}, Câmera: {fstop}"
+            
             response = client.models.generate_content(
                 model="gemini-3-pro-image-preview",
-                contents=[build_prompt(ambiente, lighting, "Fotorrealista", notes, fstop), Image.open(up)],
+                contents=[prompt_final, Image.open(up)],
                 config=types.GenerateContentConfig(temperature=0.4, response_modalities=["IMAGE"])
             )
             for part in response.candidates[0].content.parts:
@@ -126,6 +138,6 @@ if btn and up and api_key:
 # ─── EXIBIÇÃO DO SLIDER ───
 if "r" in st.session_state:
     st.divider()
-    st.markdown("### COMPARAÇÃO ANTES / DEPOIS")
-    html = compare_slider_html(st.session_state["o"], st.session_state["r"])
-    components.html(html, height=600)
+    st.markdown("### ⬡ COMPARAÇÃO ANTES / DEPOIS")
+    html_code = compare_slider_html(st.session_state["o"], st.session_state["r"])
+    components.html(html_code, height=600)
