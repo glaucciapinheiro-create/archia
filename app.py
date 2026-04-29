@@ -5,94 +5,113 @@ from google.genai import types
 from PIL import Image
 from io import BytesIO
 import base64
+from datetime import datetime
 import requests
 
-# --- CÂMBIO ---
+# ─── CÂMBIO USD → BRL ───
 @st.cache_data(ttl=3600)
-def get_usd_brl():
+def get_usd_brl() -> float:
     try:
         r = requests.get("https://economia.awesomeapi.com.br/json/last/USD-BRL", timeout=5)
         return float(r.json()["USDBRL"]["bid"])
     except: return 5.50
 
-st.set_page_config(page_title="ArchViz 3 Pro Studio", page_icon="🏛️", layout="wide")
+st.set_page_config(page_title="AI ArchViz Studio", page_icon="🏛️", layout="wide")
 
-# --- INTERFACE ---
+# ─── ESTILO VISUAL ORIGINAL (DARK & GOLD) ───
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500&display=swap');
-    html, body, [class*="css"] { font-family: 'Space Grotesk', sans-serif; background-color: #0d0f14; color: #e8e4dc; }
-    .stButton > button { background: linear-gradient(135deg, #c8b478 0%, #a8944e 100%) !important; color: #0d0f14 !important; font-weight: bold; width: 100%; border-radius: 4px; }
-    [data-testid="stSidebar"] { background-color: #111318; border-right: 1px solid rgba(200,180,120,0.2); }
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Cormorant+Garamond:wght@300;400;600&family=Space+Grotesk:wght@300;400;500&display=swap');
+html, body, [class*="css"] { font-family: 'Space Grotesk', sans-serif; }
+.stApp { background-color: #0d0f14; color: #e8e4dc; }
+[data-testid="stSidebar"] { background-color: #111318; border-right: 1px solid rgba(200,180,120,0.2); }
+h1 { font-family: 'Cormorant Garamond', serif !important; color: #e8e4dc !important; border-bottom: 1px solid rgba(200,180,120,0.3); }
+.stButton > button { background: linear-gradient(135deg, #c8b478 0%, #a8944e 100%) !important; color: #0d0f14 !important; font-family: 'DM Mono', monospace !important; border-radius: 2px !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- PROMPT DE ELITE (ÂNCORA 3 PRO) ---
-def build_elite_prompt(lighting, extra, fstop):
-    return f"""ÂNCORA DE PRECISÃO GEOMÉTRICA - MODELO 3 PRO
-Você é um motor de renderização fotorrealista de última geração.
-REFERÊNCIA: A imagem enviada é um modelo 3D técnico que deve ser respeitado em escala 1:1.
+# ─── SLIDER DE COMPARAÇÃO ───
+def compare_slider_html(b64_before: str, b64_after: str, height: int = 500) -> str:
+    return f"""
+    <!DOCTYPE html><html><head><style>
+    body {{ background: #0d0f14; margin: 0; display: flex; justify-content: center; }}
+    .wrap {{ position: relative; width: 100%; height: {height}px; overflow: hidden; cursor: col-resize; border: 1px solid rgba(200,180,120,0.3); }}
+    .img {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }}
+    .before {{ z-index: 2; clip-path: inset(0 50% 0 0); }}
+    .divider {{ position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; background: #c8b478; z-index: 10; }}
+    </style></head><body>
+    <div class="wrap" onmousemove="move(event)" ontouchmove="move(event.touches[0])">
+        <img class="img" src="data:image/png;base64,{b64_after}">
+        <img id="bf" class="img before" src="data:image/png;base64,{b64_before}">
+        <div id="dv" class="divider"></div>
+    </div>
+    <script>
+    function move(e) {{
+        let r = e.currentTarget.getBoundingClientRect();
+        let p = ((e.clientX - r.left) / r.width) * 100;
+        document.getElementById('dv').style.left = p + '%';
+        document.getElementById('bf').style.clipPath = 'inset(0 ' + (100 - p) + '% 0 0)';
+    }}
+    </script></body></html>
+    """
 
-INSTRUÇÕES DE RENDERIZAÇÃO:
-1. GEOMETRIA: Tranque todos os volumes. Proibido adicionar janelas, mudar telhados ou criar portas.
-2. MATERIAIS: Substitua albedos (cores lisas) por materiais PBR físicos. 
-   - Concreto com micro-textura e irregularidades naturais.
-   - Madeira com veios definidos e reflexo satinado.
-   - Vidros com reflexo Ray Traced do céu e entorno.
-3. CÂMERA: Full Frame, lente 35mm, abertura {fstop}. Estilo fotografia de revista ArchDaily.
-4. ATMOSFERA: {lighting}. 
-5. NOTAS DO ARQUITETO: {extra}
+# ─── PROMPT AJUSTADO (PRECISÃO + TEXTURA) ───
+def build_prompt(lighting, style, extra, fstop):
+    return f"""ÂNCORA ABSOLUTA: GEOMETRIA 1:1.
+Transforme o modelo 3D em fotografia profissional.
+REGRAS:
+1. GEOMETRIA: Mantenha paredes e volumes imóveis.
+2. TEXTURAS PBR: Substitua cores lisas por materiais REAIS (concreto, madeira carvalho, vidro reflexivo).
+3. CÂMERA: Sony A7R V, {fstop}.
+4. LUZ: {lighting}. Estilo {style}.
+NOTAS: {extra}"""
 
-RESULTADO: Gere uma fotografia técnica de alta resolução (4K)."""
-
-# --- SIDEBAR ---
+# ─── SIDEBAR ───
 with st.sidebar:
-    st.title("🏛️ Configurações")
-    api_key = st.text_input("Sua Gemini API Key", type="password")
+    st.markdown("## ⬡ API")
+    api_key = st.text_input("GEMINI API KEY", type="password")
     st.divider()
-    luz = st.selectbox("LUZ", ["Golden Hour (Quente)", "Dia Claro (Natural)", "Nublado (Suave)", "Noite (Artificial)"])
-    fstop = st.select_slider("ABERTURA (Câmera)", options=["f/1.8 (Fundo desfocado)", "f/4.0", "f/8.0 (Nítido)", "f/11"])
+    st.markdown("## ⬡ PARÂMETROS")
+    lighting = st.selectbox("ILUMINAÇÃO", ["Golden Hour", "Dia Claro", "Pôr do Sol", "Noturno"])
+    style = st.selectbox("ESTILO", ["Fotorrealista", "Artístico", "Maquete"])
+    fstop = st.select_slider("ABERTURA", options=["f/1.8", "f/2.8", "f/8.0"], value="f/8.0")
     st.divider()
-    brl = get_usd_brl()
-    st.caption(f"Custo aprox: R$ {(0.06 * brl):.2f} por render")
+    usd_brl = get_usd_brl()
+    st.caption(f"Câmbio: R$ {usd_brl:.2f} | Custo: R$ {(0.06 * usd_brl):.2f}")
 
-# --- STUDIO ---
-st.title("Estúdio ArchViz - Gemini 3 Pro")
-col1, col2 = st.columns(2)
+# ─── MAIN ───
+st.markdown("# AI ArchViz Studio")
+tab_studio, tab_gallery = st.tabs([" STUDIO ", " GALERIA "])
 
-with col1:
-    up = st.file_uploader("Upload Print 3D", type=["png", "jpg", "jpeg"])
-    if up: st.image(up, use_container_width=True)
+with tab_studio:
+    c1, c2 = st.columns(2)
+    with c1:
+        upload = st.file_uploader("Upload Print 3D", type=["png", "jpg", "jpeg"])
+        if upload: st.image(upload, use_container_width=True)
+    with c2:
+        notes = st.text_area("Materiais e Notas", placeholder="Ex: Deck de madeira, concreto aparente...")
+        btn = st.button("⬡ GERAR RENDER 3 PRO")
 
-with col2:
-    obs = st.text_area("Descrição de Materiais", placeholder="Ex: Deck de madeira cumaru, paredes brancas, esquadrias pretas...")
-    go = st.button("RENDERIZAR EM 4K")
-
-if go and up and api_key:
-    with st.spinner("Processando com Gemini 3 Pro..."):
-        try:
-            client = genai.Client(api_key=api_key)
-            # USANDO O MODELO MAIS POTENTE DE 2026
-            response = client.models.generate_content(
-                model="gemini-3-pro-image-preview", 
-                contents=[build_elite_prompt(luz, obs, fstop), Image.open(up)],
-                config=types.GenerateContentConfig(
-                    temperature=0.35, # Equilíbrio entre criatividade de textura e rigor geométrico
-                    response_modalities=["IMAGE"],
+    if btn and upload and api_key:
+        with st.spinner("Renderizando com Gemini 3 Pro..."):
+            try:
+                client = genai.Client(api_key=api_key)
+                # TENTA O 3 PRO, SE DER 404 ELE AVISA
+                response = client.models.generate_content(
+                    model="gemini-3-pro-image-preview",
+                    contents=[build_prompt(lighting, style, notes, fstop), Image.open(upload)],
+                    config=types.GenerateContentConfig(temperature=0.4, response_modalities=["IMAGE"])
                 )
-            )
-            for part in response.candidates[0].content.parts:
-                if part.inline_data:
-                    rend_img = Image.open(BytesIO(part.inline_data.data))
-                    st.session_state["o"] = base64.b64encode(up.getvalue()).decode()
-                    st.session_state["r"] = base64.b64encode(part.inline_data.data).decode()
-                    st.rerun()
-        except Exception as e:
-            st.error(f"Erro: {e}")
-            st.info("Se aparecer 404, mude o nome do modelo para 'gemini-1.5-pro' no código do GitHub.")
+                for part in response.candidates[0].content.parts:
+                    if part.inline_data:
+                        img_data = part.inline_data.data
+                        st.session_state["o"] = base64.b64encode(upload.getvalue()).decode()
+                        st.session_state["r"] = base64.b64encode(img_data).decode()
+                        st.rerun()
+            except Exception as e:
+                st.error(f"Erro: {e}. Se for 404, mude para 'gemini-1.5-pro' no código.")
 
-# --- VISUALIZAÇÃO ---
-if "r" in st.session_state:
-    st.success("Render Finalizado!")
-    # O código do slider que você já tem no app.py pode ser mantido aqui abaixo
-    st.image(base64.b64decode(st.session_state["r"]), caption="Render 3 Pro")
+    if "r" in st.session_state:
+        st.divider()
+        html = compare_slider_html(st.session_state["o"], st.session_state["r"])
+        components.html(html, height=550)
